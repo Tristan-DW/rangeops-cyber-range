@@ -1,0 +1,15 @@
+{
+  "name": "rangeops",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cyber range and attack simulation platform MVP",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @rangeops/api",
+    "start:api": "npm run start -w @rangeops/api",
+    "typecheck": "npm run typecheck -ws"
+  }
+}

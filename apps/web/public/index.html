@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RangeOps | Cyber Range MVP</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body { font-family: Inter, Segoe UI, sans-serif; margin: 0; background: #0b1220; color: #e2e8f0; }
+      header { border-bottom: 1px solid #25324c; background: #111a2f; }
+      .header-wrap { max-width: 1100px; margin: 0 auto; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+      main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+      h1, h2, h3 { margin: 0 0 10px; }
+      p { color: #93a4c3; }
+      .muted { color: #8aa0c8; font-size: 14px; }
+      .card { background: #121d32; border: 1px solid #25324c; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+      .stat { background: #10192b; border: 1px solid #25324c; border-radius: 10px; padding: 12px; }
+      .stat strong { display: block; font-size: 22px; margin-top: 8px; color: #dbeafe; }
+      button { background: #2563eb; color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600; }
+      button:hover { background: #1d4ed8; }
+      select, input { background: #0f172a; color: #fff; border: 1px solid #334155; border-radius: 8px; padding: 9px; width: 100%; margin: 6px 0 10px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+      .row { background: #0f172a; border: 1px solid #25324c; border-radius: 8px; padding: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+      .timeline-item { border-left: 3px solid #1d4ed8; padding-left: 10px; margin-bottom: 10px; }
+      .timeline-item.detector { border-left-color: #10b981; }
+      .timeline-item.attacker { border-left-color: #ef4444; }
+      code { color: #93c5fd; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid #23314b; padding: 8px 6px; text-align: left; }
+      .ok { color: #34d399; }
+      .warn { color: #fbbf24; }
+      @media (max-width: 900px) {
+        .stat-grid { grid-template-columns: 1fr 1fr; }
+        .grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="header-wrap">
+        <div>
+          <h1>RangeOps</h1>
+          <div class="muted">Cyber Range + Attack Simulation Platform (MVP)</div>
+        </div>
+        <button id="refreshBtn">Refresh Data</button>
+      </div>
+    </header>
+    <main>
+      <section class="stat-grid">
+        <div class="stat"><span class="muted">Scenarios</span><strong id="statScenarios">0</strong></div>
+        <div class="stat"><span class="muted">Active Labs</span><strong id="statLabs">0</strong></div>
+        <div class="stat"><span class="muted">Runs</span><strong id="statRuns">0</strong></div>
+        <div class="stat"><span class="muted">Average Score</span><strong id="statScore">0</strong></div>
+      </section>
+
+      <section class="card">
+        <h2>Create Lab</h2>
+        <div class="grid">
+          <div>
+            <label>Workspace ID</label>
+            <input id="workspaceId" value="workspace-demo" />
+          </div>
+          <div>
+            <label>Lab Name</label>
+            <input id="labName" value="Blue Team Sandbox" />
+          </div>
+        </div>
+        <label>Scenario</label>
+        <select id="scenarioSelect"></select>
+        <button id="createLabBtn">Provision Lab</button>
+      </section>
+
+      <section class="grid">
+        <section class="card">
+          <h2>Labs</h2>
+          <div class="muted">Execute any ready lab against its linked scenario.</div>
+          <ul id="labsList" class="list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>MITRE Tactic Coverage</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Tactic</th>
+                <th>Detected</th>
+                <th>Total</th>
+                <th>Coverage</th>
+              </tr>
+            </thead>
+            <tbody id="matrixTable"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section class="card">
+        <h2>Latest Run Score</h2>
+        <p id="scoreCard">No runs yet.</p>
+      </section>
+
+      <section class="card">
+        <h2>Replay Timeline</h2>
+        <div id="timelineList"></div>
+      </section>
+    </main>
+
+    <script>
+      const apiBase = "http://localhost:4000";
+      let selectedLabId = null;
+
+      async function loadScenarios() {
+        const res = await fetch(`${apiBase}/api/scenarios`);
+        const data = await res.json();
+        const select = document.getElementById("scenarioSelect");
+        select.innerHTML = "";
+        data.scenarios.forEach((scenario) => {
+          const option = document.createElement("option");
+          option.value = scenario.id;
+          option.textContent = `${scenario.name} (${scenario.difficulty})`;
+          select.appendChild(option);
+        });
+      }
+
+      async function loadOverview() {
+        const res = await fetch(`${apiBase}/api/overview`);
+        const data = await res.json();
+        document.getElementById("statScenarios").textContent = data.scenarios;
+        document.getElementById("statLabs").textContent = data.labs;
+        document.getElementById("statRuns").textContent = data.runs;
+        document.getElementById("statScore").textContent = data.avgScore;
+
+        const matrixBody = document.getElementById("matrixTable");
+        matrixBody.innerHTML = "";
+        data.attackMatrix.forEach((row) => {
+          const tr = document.createElement("tr");
+          const coveragePct = `${Math.round(row.coverage * 100)}%`;
+          tr.innerHTML = `<td>${row.tactic}</td><td>${row.detected}</td><td>${row.total}</td><td class="${row.coverage >= 0.7 ? "ok" : "warn"}">${coveragePct}</td>`;
+          matrixBody.appendChild(tr);
+        });
+        if (!data.attackMatrix.length) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = "<td colspan=\"4\" class=\"muted\">Run at least one scenario to generate ATT&CK coverage data.</td>";
+          matrixBody.appendChild(tr);
+        }
+      }
+
+      async function loadLabs() {
+        const res = await fetch(`${apiBase}/api/labs`);
+        const data = await res.json();
+        const labsList = document.getElementById("labsList");
+        labsList.innerHTML = "";
+        data.labs.forEach((lab) => {
+          const li = document.createElement("li");
+          const btn = document.createElement("button");
+          btn.textContent = "Run Scenario";
+          btn.onclick = () => runScenario(lab.id);
+          li.className = "row";
+          const left = document.createElement("div");
+          left.innerHTML = `<strong>${lab.name}</strong><div class="muted">${lab.status} · expires ${new Date(lab.expiresAt).toLocaleString()}</div>`;
+          li.appendChild(left);
+          li.appendChild(btn);
+          labsList.appendChild(li);
+        });
+        if (!data.labs.length) {
+          const empty = document.createElement("li");
+          empty.className = "muted";
+          empty.textContent = "No labs created yet.";
+          labsList.appendChild(empty);
+        }
+      }
+
+      async function createLab() {
+        const workspaceId = document.getElementById("workspaceId").value.trim();
+        const name = document.getElementById("labName").value.trim();
+        const scenarioId = document.getElementById("scenarioSelect").value;
+
+        await fetch(`${apiBase}/api/labs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workspaceId, name, scenarioId, ttlMinutes: 90 })
+        });
+        await loadLabs();
+      }
+
+      async function runScenario(labId) {
+        selectedLabId = labId;
+        const runRes = await fetch(`${apiBase}/api/runs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ labId })
+        });
+        const runData = await runRes.json();
+        const runId = runData.run.id;
+
+        document.getElementById("scoreCard").textContent =
+          `Score: ${runData.score.finalScore} | Coverage: ${(runData.score.detectionCoverage * 100).toFixed(0)}% | MTTD: ${runData.score.meanTimeToDetectSec}s | False Positives: ${runData.score.falsePositiveCount}`;
+
+        const timelineRes = await fetch(`${apiBase}/api/runs/${runId}/timeline`);
+        const timelineData = await timelineRes.json();
+        const timelineList = document.getElementById("timelineList");
+        timelineList.innerHTML = "";
+        timelineData.timeline.forEach((event) => {
+          const div = document.createElement("div");
+          div.className = `timeline-item ${event.source}`;
+          div.innerHTML = `<code>${new Date(event.timestamp).toLocaleTimeString()}</code> <strong>[${event.source}] ${event.title}</strong><div class="muted">${event.detail}</div>`;
+          timelineList.appendChild(div);
+        });
+        await loadOverview();
+      }
+
+      document.getElementById("createLabBtn").onclick = createLab;
+      document.getElementById("refreshBtn").onclick = () => Promise.all([loadOverview(), loadLabs()]);
+      Promise.all([loadScenarios(), loadLabs(), loadOverview()]);
+    </script>
+  </body>
+</html>

